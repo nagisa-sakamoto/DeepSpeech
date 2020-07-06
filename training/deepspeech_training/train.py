@@ -300,6 +300,9 @@ def get_tower_results(iterator, optimizer, dropout_rates):
     # Aggregate any non finite files in the batches
     tower_non_finite_files = []
 
+    # dropped_layers
+    dropped_layers = ['2', '3', 'lstm', '5', '6'][-1 * int(FLAGS.drop_source_layers):]
+    
     with tfv1.variable_scope(tfv1.get_variable_scope()):
         # Loop over available_devices
         for i in range(len(Config.available_devices)):
@@ -319,7 +322,16 @@ def get_tower_results(iterator, optimizer, dropout_rates):
                     tower_avg_losses.append(avg_loss)
 
                     # Compute gradients for model parameters using tower's mini-batch
-                    gradients = optimizer.compute_gradients(avg_loss)
+                    if FLAGS.fix_source_layers:
+                        gradients = optimizer.compute_gradients(
+                            avg_loss,
+                            var_list = [ v for v in tf.trainable_variables()
+                                         if any(
+                                                 layer in v.op.name
+                                                 for layer in dropped_layers
+                                         )])
+                    else:
+                        gradients = optimizer.compute_gradients(avg_loss)
 
                     # Retain tower's gradients
                     tower_gradients.append(gradients)
