@@ -27,7 +27,10 @@ class Alphabet(object):
 
     def _label_from_string(self, string):
         try:
-            return self._str_to_label[string]
+            if string in self._str_to_label:
+                return self._str_to_label[string]
+            else:
+                return ""
         except KeyError as e:
             raise KeyError(
                 'ERROR: Your transcripts contain characters (e.g. \'{}\') which do not occur in \'{}\'! Use ' \
