@@ -88,7 +88,7 @@ def print_report(samples, losses, wer, cer, dataset_name):
 
     # Print summary
     mean_loss = np.mean(losses)
-    print('Test on %s - WER: %f, CER: %f, loss: %f' % (dataset_name, wer, cer, mean_loss))
+    print('Test on %s - WER: %f, CER: %f, TestLoss: %f;' % (dataset_name, wer, cer, mean_loss))
     print('-' * 80)
 
     best_samples = samples[:FLAGS.report_count]

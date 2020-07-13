@@ -59,7 +59,10 @@ def initialize_globals():
     c.session_config = tfv1.ConfigProto(allow_soft_placement=True, log_device_placement=FLAGS.log_placement,
                                         inter_op_parallelism_threads=FLAGS.inter_op_parallelism_threads,
                                         intra_op_parallelism_threads=FLAGS.intra_op_parallelism_threads,
-                                        gpu_options=tfv1.GPUOptions(allow_growth=FLAGS.use_allow_growth))
+                                        gpu_options=tfv1.GPUOptions(
+                                            allow_growth=FLAGS.use_allow_growth,
+                                            per_process_gpu_memory_fraction=FLAGS.gpu_per_process_memory_fraction
+                                        ))
 
     # CPU device
     c.cpu_device = '/cpu:0'

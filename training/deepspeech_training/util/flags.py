@@ -12,6 +12,9 @@ def create_flags():
 
     f = absl.flags
 
+    f.DEFINE_string('model_dir', '', 'tmp ...')
+    f.DEFINE_float('gpu_per_process_memory_fraction', '0.5', 'allowcate gpu memory')
+    
     f.DEFINE_string('train_files', '', 'comma separated list of files specifying the dataset used for training. Multiple files will get merged. If empty, training will not be run.')
     f.DEFINE_string('dev_files', '', 'comma separated list of files specifying the dataset used for validation. Multiple files will get merged. If empty, validation will not be run.')
     f.DEFINE_string('test_files', '', 'comma separated list of files specifying the dataset used for testing. Multiple files will get merged. If empty, the model will not be tested.')
@@ -57,7 +60,8 @@ def create_flags():
     # Global Constants
     # ================
 
-    f.DEFINE_integer('epochs', 75, 'how many epochs (complete runs through the train files) to train for')
+#     f.DEFINE_integer('epochs', 75, 'how many epochs (complete runs through the train files) to train for')
+    f.DEFINE_integer('epochs', 0, 'how many epochs (complete runs through the train files) to train for')
 
     f.DEFINE_float('dropout_rate', 0.05, 'dropout rate for feedforward layers')
     f.DEFINE_float('dropout_rate2', -1.0, 'dropout rate for layer 2 - defaults to dropout_rate')
@@ -73,11 +77,13 @@ def create_flags():
     f.DEFINE_float('beta1', 0.9, 'beta 1 parameter of Adam optimizer')
     f.DEFINE_float('beta2', 0.999, 'beta 2 parameter of Adam optimizer')
     f.DEFINE_float('epsilon', 1e-8, 'epsilon parameter of Adam optimizer')
-    f.DEFINE_float('learning_rate', 0.001, 'learning rate of Adam optimizer')
+#     f.DEFINE_float('learning_rate', 0.001, 'learning rate of Adam optimizer')
+    f.DEFINE_float('learning_rate', None, 'learning rate of Adam optimizer')
 
     # Batch sizes
 
-    f.DEFINE_integer('train_batch_size', 1, 'number of elements in a training batch')
+#     f.DEFINE_integer('train_batch_size', 1, 'number of elements in a training batch')
+    f.DEFINE_integer('train_batch_size', None, 'number of elements in a training batch')
     f.DEFINE_integer('dev_batch_size', 1, 'number of elements in a validation batch')
     f.DEFINE_integer('test_batch_size', 1, 'number of elements in a test batch')
 
@@ -111,7 +117,6 @@ def create_flags():
     # Transfer Learning
 
     f.DEFINE_integer('drop_source_layers', 0, 'single integer for how many layers to drop from source model (to drop just output == 1, drop penultimate and output ==2, etc)')
-    f.DEFINE_boolean('fix_source_layers', False, 'whether to fix source layers')
 
     # Exporting
 

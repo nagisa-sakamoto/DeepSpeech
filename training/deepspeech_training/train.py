@@ -5,6 +5,13 @@ from __future__ import absolute_import, division, print_function
 import os
 import sys
 
+###
+import gc
+import subprocess
+from tensorflow.python.client import device_lib
+from memory_profiler import profile
+###
+
 LOG_LEVEL_INDEX = sys.argv.index('--log_level') + 1 if '--log_level' in sys.argv else 0
 DESIRED_LOG_LEVEL = sys.argv[LOG_LEVEL_INDEX] if 0 < LOG_LEVEL_INDEX < len(sys.argv) else '3'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = DESIRED_LOG_LEVEL
@@ -300,9 +307,6 @@ def get_tower_results(iterator, optimizer, dropout_rates):
     # Aggregate any non finite files in the batches
     tower_non_finite_files = []
 
-    # dropped_layers
-    dropped_layers = ['2', '3', 'lstm', '5', '6'][-1 * int(FLAGS.drop_source_layers):]
-    
     with tfv1.variable_scope(tfv1.get_variable_scope()):
         # Loop over available_devices
         for i in range(len(Config.available_devices)):
@@ -322,16 +326,7 @@ def get_tower_results(iterator, optimizer, dropout_rates):
                     tower_avg_losses.append(avg_loss)
 
                     # Compute gradients for model parameters using tower's mini-batch
-                    if FLAGS.fix_source_layers:
-                        gradients = optimizer.compute_gradients(
-                            avg_loss,
-                            var_list = [ v for v in tf.trainable_variables()
-                                         if any(
-                                                 layer in v.op.name
-                                                 for layer in dropped_layers
-                                         )])
-                    else:
-                        gradients = optimizer.compute_gradients(avg_loss)
+                    gradients = optimizer.compute_gradients(avg_loss)
 
                     # Retain tower's gradients
                     tower_gradients.append(gradients)
@@ -387,7 +382,6 @@ def average_gradients(tower_gradients):
 
 # Logging
 # =======
-
 def log_variable(variable, gradient=None):
     r'''
     We introduce a function for logging a tensor variable's current state.
@@ -409,7 +403,6 @@ def log_variable(variable, gradient=None):
         if grad_values is not None:
             tfv1.summary.histogram(name='%s/gradients' % name, values=grad_values)
 
-
 def log_grads_and_vars(grads_and_vars):
     r'''
     Let's also introduce a helper function for logging collections of gradient/variable tuples.
@@ -417,7 +410,7 @@ def log_grads_and_vars(grads_and_vars):
     for gradient, variable in grads_and_vars:
         log_variable(variable, gradient=gradient)
 
-
+@profile(precision=4)
 def train():
     do_cache_dataset = True
 
@@ -512,7 +505,8 @@ def train():
 
     # Save flags next to checkpoints
     os.makedirs(FLAGS.save_checkpoint_dir, exist_ok=True)
-    flags_file = os.path.join(FLAGS.save_checkpoint_dir, 'flags.txt')
+#     flags_file = os.path.join(FLAGS.save_checkpoint_dir, 'flags.txt')
+    flags_file = os.path.join(FLAGS.summary_dir, 'flags.txt')
     with open(flags_file, 'w') as fout:
         fout.write(FLAGS.flags_into_string())
 
@@ -538,8 +532,11 @@ def train():
 
             # Setup progress bar
             class LossWidget(progressbar.widgets.FormatLabel):
-                def __init__(self):
-                    progressbar.widgets.FormatLabel.__init__(self, format='Loss: %(mean_loss)f')
+#                 def __init__(self):
+#                     progressbar.widgets.FormatLabel.__init__(self, format='Loss: %(mean_loss)f')
+
+                def __init__(self, phase=''):
+                    progressbar.widgets.FormatLabel.__init__(self, format=phase+'Loss: %(mean_loss)f')
 
                 def __call__(self, progress, data, **kwargs):
                     data['mean_loss'] = total_loss / step_count if step_count else 0.0
@@ -548,7 +545,7 @@ def train():
             prefix = 'Epoch {} | {:>10}'.format(epoch, 'Training' if is_train else 'Validation')
             widgets = [' | ', progressbar.widgets.Timer(),
                        ' | Steps: ', progressbar.widgets.Counter(),
-                       ' | ', LossWidget()]
+                       ' | ', LossWidget('Training' if is_train else 'Validation')]
             suffix = ' | Dataset: {}'.format(dataset) if dataset else None
             pbar = create_progressbar(prefix=prefix, widgets=widgets, suffix=suffix).start()
 
@@ -627,9 +624,9 @@ def train():
 
                     # Save new best model
                     if dev_loss < best_dev_loss:
-                        best_dev_loss = dev_loss
-                        save_path = best_dev_saver.save(session, best_dev_path, global_step=global_step, latest_filename='best_dev_checkpoint')
-                        log_info("Saved new best validating model with loss %f to: %s" % (best_dev_loss, save_path))
+                         best_dev_loss = dev_loss
+                         save_path = best_dev_saver.save(session, best_dev_path, global_step=global_step, latest_filename='best_dev_checkpoint')
+                         log_info("Saved new best validating model with loss %f to: %s" % (best_dev_loss, save_path))
 
                     # Early stopping
                     if FLAGS.early_stop and epochs_without_improvement == FLAGS.es_epochs:
@@ -652,13 +649,13 @@ def train():
         log_info('FINISHED optimization in {}'.format(datetime.utcnow() - train_start_time))
     log_debug('Session closed.')
 
-
+@profile(precision=4)
 def test():
     samples = evaluate(FLAGS.test_files.split(','), create_model)
     if FLAGS.test_output_file:
         save_samples_json(samples, FLAGS.test_output_file)
 
-
+@profile(precision=4)
 def create_inference_graph(batch_size=1, n_steps=16, tflite=False):
     batch_size = batch_size if batch_size > 0 else None
 
@@ -748,11 +745,11 @@ def create_inference_graph(batch_size=1, n_steps=16, tflite=False):
 
     return inputs, outputs, layers
 
-
+@profile(precision=4)
 def file_relative_read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
-
+@profile(precision=4)
 def export():
     r'''
     Restores the trained variables into a simpler graph that will be exported for serving.
@@ -846,7 +843,7 @@ def export():
 
     log_info('Model metadata file saved to {}. Before submitting the exported model for publishing make sure all information in the metadata file is correct, and complete the URL fields.'.format(metadata_fname))
 
-
+@profile(precision=4)
 def package_zip():
     # --export_dir path/to/export/LANG_CODE/ => path/to/export/LANG_CODE.zip
     export_dir = os.path.join(os.path.abspath(FLAGS.export_dir), '') # Force ending '/'
@@ -857,7 +854,7 @@ def package_zip():
     archive = shutil.make_archive(zip_filename, 'zip', export_dir)
     log_info('Exported packaged model {}'.format(archive))
 
-
+@profile(precision=4)
 def do_single_file_inference(input_file_path):
     with tfv1.Session(config=Config.session_config) as session:
         inputs, outputs, _ = create_inference_graph(batch_size=1, n_steps=-1)
@@ -897,7 +894,7 @@ def do_single_file_inference(input_file_path):
         # Print highest probability result
         print(decoded[0][1])
 
-
+@profile(precision=4)
 def early_training_checks():
     # Check for proper scorer early
     if FLAGS.scorer_path:
@@ -914,7 +911,7 @@ def early_training_checks():
                  '--load_checkpoint_dir in both cases, or use the same location '
                  'for loading and saving.')
 
-
+@profile(precision=4)
 def main(_):
     initialize_globals()
     early_training_checks()
@@ -923,10 +920,12 @@ def main(_):
         tfv1.reset_default_graph()
         tfv1.set_random_seed(FLAGS.random_seed)
         train()
+        gc.collect()
 
     if FLAGS.test_files:
         tfv1.reset_default_graph()
         test()
+        gc.collect()
 
     if FLAGS.export_dir and not FLAGS.export_zip:
         tfv1.reset_default_graph()
@@ -948,9 +947,14 @@ def main(_):
         do_single_file_inference(FLAGS.one_shot_infer)
 
 
+@profile(precision=4)
 def run_script():
+#     print(device_lib.list_local_devices())
+    subprocess.call('nvidia-smi')
     create_flags()
     absl.app.run(main)
+    subprocess.call('nvidia-smi')
 
+            
 if __name__ == '__main__':
     run_script()

@@ -69,7 +69,7 @@ def main():
     decoder_pkg_url = get_decoder_pkg_url(version)
 
     install_requires_base = [
-        'tensorflow == 1.15.2',
+        'tensorflow-gpu == 1.15.2',
         'numpy',
         'progressbar2',
         'six',
@@ -86,7 +86,9 @@ def main():
         'numba == 0.47.0', # ships py3.5 wheel
         'llvmlite == 0.31.0', # for numba==0.47.0
         'librosa',
-        'soundfile',
+        'soundfile',        
+        'memory_profiler', # add
+        'psutil' # add
     ]
 
     # Due to pip craziness environment variables are the only consistent way to
